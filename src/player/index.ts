@@ -16,13 +16,14 @@ import {
   Range,
   Selection,
   TextDocument,
+  TextEditor,
   TextEditorRevealType,
   Uri,
   window,
   workspace
 } from "vscode";
-import { SMALL_ICON_URL } from "../constants";
-import { CodeTour, store } from "../store";
+import { EXTENSION_NAME, SMALL_ICON_URL } from "../constants";
+import { CodeTour, CodeTourStep, store } from "../store";
 import { initializeStorage } from "../store/storage";
 import {
   getActiveStepMarker,
@@ -377,7 +378,7 @@ async function renderCurrentStep() {
     selection = new Selection(range.start, range.end);
   }
 
-  await showDocument(uri, range, selection);
+  await showStepDocument(step, uri, range, selection);
 
   if (step.directory) {
     const directoryUri = getFileUri(step.directory, workspaceRoot);
@@ -418,7 +419,7 @@ async function renderCurrentStep() {
 }
 
 async function showDocument(uri: Uri, range: Range, selection?: Selection) {
-  const document =
+  const editor =
     window.visibleTextEditors.find(
       editor => editor.document.uri.toString() === uri.toString()
     ) || (await window.showTextDocument(uri, { preserveFocus: true }));
@@ -426,11 +427,86 @@ async function showDocument(uri: Uri, range: Range, selection?: Selection) {
   // TODO: Figure out how to force focus when navigating
   // to documents which are already open.
 
+  applySelectionAndReveal(editor, range, selection);
+}
+
+function shouldOpenWorkingTreeChangesOnNavigation() {
+  return workspace
+    .getConfiguration(EXTENSION_NAME)
+    .get("openWorkingTreeChangesOnNavigation", true);
+}
+
+function isFileBasedStep(step: CodeTourStep, uri: Uri) {
+  return !!(step.file || step.uri) && uri.scheme === "file";
+}
+
+function delay(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+async function waitForVisibleEditor(
+  uri: Uri,
+  maxAttempts: number = 5
+): Promise<TextEditor | undefined> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const editor = window.visibleTextEditors.find(
+      editor => editor.document.uri.toString() === uri.toString()
+    );
+    if (editor) {
+      return editor;
+    }
+
+    await delay(20);
+  }
+}
+
+function applySelectionAndReveal(
+  editor: TextEditor,
+  range: Range,
+  selection?: Selection
+) {
   if (selection) {
-    document.selection = selection;
+    editor.selection = selection;
   }
 
-  document.revealRange(range, TextEditorRevealType.InCenter);
+  editor.revealRange(range, TextEditorRevealType.InCenter);
+}
+
+async function showWorkingTreeChange(
+  uri: Uri,
+  range: Range,
+  selection?: Selection
+): Promise<boolean> {
+  try {
+    await commands.executeCommand("git.openChange", uri);
+  } catch {
+    return false;
+  }
+
+  const editor = await waitForVisibleEditor(uri);
+  if (!editor) {
+    return false;
+  }
+
+  applySelectionAndReveal(editor, range, selection);
+  return true;
+}
+
+async function showStepDocument(
+  step: CodeTourStep,
+  uri: Uri,
+  range: Range,
+  selection?: Selection
+) {
+  if (
+    shouldOpenWorkingTreeChangesOnNavigation() &&
+    isFileBasedStep(step, uri) &&
+    (await showWorkingTreeChange(uri, range, selection))
+  ) {
+    return;
+  }
+
+  await showDocument(uri, range, selection);
 }
 
 export function registerPlayerModule(context: ExtensionContext) {

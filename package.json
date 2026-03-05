@@ -64,6 +64,11 @@
           "type": "string",
           "default": null,
           "description": "Specifies a custom location to use when discovering tours."
+        },
+        "codetour.openWorkingTreeChangesOnNavigation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Specifies whether file-based tour navigation opens Source Control changes (Working Tree) when available. Falls back to opening the file directly when no change is available."
         }
       }
     },

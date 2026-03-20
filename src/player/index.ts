@@ -195,6 +195,8 @@ const VIEW_COMMANDS = new Map([
   ["terminal", "terminal.focus"]
 ]);
 
+type StepNavigationMode = "default" | "workingTree" | "githubPullRequest";
+
 function getPreviousTour(): CodeTour | undefined {
   const previousTour = store.tours.find(
     tour => tour.nextTour === store.activeTour?.tour.title
@@ -430,10 +432,25 @@ async function showDocument(uri: Uri, range: Range, selection?: Selection) {
   applySelectionAndReveal(editor, range, selection);
 }
 
-function shouldOpenWorkingTreeChangesOnNavigation() {
-  return workspace
+function getStepNavigationMode(): StepNavigationMode {
+  const mode = workspace
     .getConfiguration(EXTENSION_NAME)
-    .get("openWorkingTreeChangesOnNavigation", true);
+    .get("openWorkingTreeChangesOnNavigation", "default") as unknown;
+
+  // Backward compatibility for older boolean values.
+  if (mode === true) {
+    return "workingTree";
+  } else if (mode === false) {
+    return "default";
+  } else if (
+    mode === "default" ||
+    mode === "workingTree" ||
+    mode === "githubPullRequest"
+  ) {
+    return mode;
+  }
+
+  return "default";
 }
 
 function isFileBasedStep(step: CodeTourStep, uri: Uri) {
@@ -492,18 +509,46 @@ async function showWorkingTreeChange(
   return true;
 }
 
+async function showGithubPullRequestChange(
+  uri: Uri,
+  range: Range,
+  selection?: Selection
+): Promise<boolean> {
+  // The PR extension resolves from a currently visible editor.
+  // Open/reveal the file first, then ask it to transition to diff view.
+  await showDocument(uri, range, selection);
+
+  try {
+    await commands.executeCommand("pr.openDiffViewFromEditor", uri);
+  } catch {
+    return false;
+  }
+
+  const editor = await waitForVisibleEditor(uri);
+  if (!editor) {
+    return false;
+  }
+
+  applySelectionAndReveal(editor, range, selection);
+  return true;
+}
+
 async function showStepDocument(
   step: CodeTourStep,
   uri: Uri,
   range: Range,
   selection?: Selection
 ) {
-  if (
-    shouldOpenWorkingTreeChangesOnNavigation() &&
-    isFileBasedStep(step, uri) &&
-    (await showWorkingTreeChange(uri, range, selection))
-  ) {
-    return;
+  if (isFileBasedStep(step, uri)) {
+    const mode = getStepNavigationMode();
+    if (mode === "workingTree") {
+      if (await showWorkingTreeChange(uri, range, selection)) {
+        return;
+      }
+    } else if (mode === "githubPullRequest") {
+      await showGithubPullRequestChange(uri, range, selection);
+      return;
+    }
   }
 
   await showDocument(uri, range, selection);

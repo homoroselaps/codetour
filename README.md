@@ -376,7 +376,7 @@ The `CodeTour` extension contributes the following settings:
 
 - `Codetour > Custom Tour Directory` - Specifies the name of a custom directory path that tours can be stored in within an opened workspace (e.g. `docs/tours`).
 
-- `Codetour > Open Working Tree Changes On Navigation` - Specifies whether file-based tour navigation should open the Source Control `Working Tree` diff editor when available. Defaults to `true`. If a change isn't available, navigation falls back to opening the file directly.
+- `Codetour > Open Working Tree Changes On Navigation` - Specifies how file-based tour navigation opens files. The available values are `default`, `workingTree`, and `githubPullRequest`. The default is `default`.
 
 ### Keybindings
 

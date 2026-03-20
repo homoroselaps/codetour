@@ -66,9 +66,19 @@
           "description": "Specifies a custom location to use when discovering tours."
         },
         "codetour.openWorkingTreeChangesOnNavigation": {
-          "type": "boolean",
-          "default": true,
-          "description": "Specifies whether file-based tour navigation opens Source Control changes (Working Tree) when available. Falls back to opening the file directly when no change is available."
+          "type": "string",
+          "enum": [
+            "default",
+            "workingTree",
+            "githubPullRequest"
+          ],
+          "enumDescriptions": [
+            "Open the file directly at the tour step location.",
+            "Open Source Control changes (Working Tree) when available, and fall back to opening the file directly.",
+            "Open the file in GitHub Pull Request diff view (requires the GitHub Pull Requests extension and an active checked-out pull request), and fall back to opening the file directly."
+          ],
+          "default": "default",
+          "description": "Specifies how file-based tour navigation opens files."
         }
       }
     },
